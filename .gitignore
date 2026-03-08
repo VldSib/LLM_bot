@@ -1,0 +1,16 @@
+# Токен и секреты
+.env
+.env.txt
+.env.example
+
+# Виртуальное окружение
+venv/
+.venv/
+
+# Кэш Python
+__pycache__/
+*.pyc
+
+# Прочее
+.gitattributes
+gitignore.txt
