@@ -1,9 +1,14 @@
-import telebot
-from dotenv import load_dotenv
 import os
 from collections import defaultdict
-from langchain_openai import ChatOpenAI
+from typing import List, Any
+
+import telebot
+from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+
+from rag import build_knowledge_base, load_or_build_faiss_index, retrieve_context
+
 
 load_dotenv()
 
@@ -21,7 +26,12 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # история сообщений для каждого чата
-chat_histories = defaultdict(list)
+chat_histories: dict[int, List[Any]] = defaultdict(list)
+
+# in-memory база знаний для RAG
+knowledge_chunks = build_knowledge_base()
+# FAISS-индекс (эмбеддинги OpenRouter); при отсутствии — поиск по ключевым словам
+faiss_store = load_or_build_faiss_index(knowledge_chunks)
 
 SYSTEM_PROMPT = (
     "Ты дружелюбный русскоязычный помощник в Telegram. "
@@ -35,7 +45,8 @@ def handle_start(message):
     bot.reply_to(
         message,
         "Привет! Я ИИ‑бот. Пиши мне сообщения — я буду отвечать, "
-        "помня контекст нашей беседы.",
+        "помня контекст нашей беседы.\n\n"
+        "Для рабочих вопросов могу использовать локальную базу знаний из папки docs.",
     )
 
 
@@ -48,7 +59,14 @@ def handle_llm_message(message):
         user_msg = HumanMessage(content=message.text)
         history.append(user_msg)
 
-        messages_for_llm = [SystemMessage(content=SYSTEM_PROMPT)] + history[-MAX_HISTORY_MESSAGES:]
+        # RAG: подбираем контекст (FAISS при наличии, иначе по ключевым словам)
+        rag_context = retrieve_context(knowledge_chunks, message.text, vectorstore=faiss_store)
+
+        messages_for_llm: List[Any] = [SystemMessage(content=SYSTEM_PROMPT)]
+        if rag_context:
+            messages_for_llm.append(SystemMessage(content=rag_context))
+
+        messages_for_llm.extend(history[-MAX_HISTORY_MESSAGES:])
 
         print(f"[{chat_id}] USER:", message.text)
 

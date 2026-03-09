@@ -1,23 +1,22 @@
-"""
-RAG: загрузка документов из папки docs и поиск релевантных фрагментов по запросу.
-Поддерживается векторный поиск (FAISS + эмбеддинги OpenRouter) и fallback по ключевым словам.
-"""
+"""RAG: загрузка docs, поиск по FAISS (OpenRouter) или по ключевым словам."""
 import os
 from typing import List, Dict, Any, Optional
 
 from pypdf import PdfReader
 import docx
 
-# Папка с базой знаний — docs внутри проекта (AI_YP/docs)
 DOCS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "docs"))
-# Путь к сохранённому индексу FAISS (относительно корня проекта)
 FAISS_INDEX_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "rag_faiss_index"))
 MAX_RAG_CONTEXT_CHARS = 6000
 DEFAULT_TOP_K = 10
-
-# Эмбеддинги через OpenRouter (тот же ключ, что для чата)
 OPENROUTER_EMBEDDINGS_BASE = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL = "openai/text-embedding-3-small"
+
+RAG_HEADER = (
+    "Вот выдержки из локальной базы знаний (документы из папки docs). "
+    "Отвечай, опираясь прежде всего на них. Если информации недостаточно, "
+    "честно скажи, чего не хватает.\n\n"
+)
 
 
 def _split_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> List[str]:
@@ -53,11 +52,19 @@ def _load_docx(path: str) -> str:
         return ""
 
 
+def _format_context_parts(items: List[tuple[str, str]], limit: int) -> List[str]:
+    parts = []
+    total = 0
+    for idx, (source, text) in enumerate(items, start=1):
+        part = f"[{idx}] ({source})\n{text}\n"
+        if total + len(part) > limit:
+            break
+        parts.append(part)
+        total += len(part)
+    return parts
+
+
 def build_knowledge_base(docs_dir: str | None = None) -> List[Dict[str, Any]]:
-    """
-    Простой in-memory RAG: режем документы из docs на куски,
-    затем по запросу ищем по пересечению ключевых слов.
-    """
     base_dir = docs_dir or DOCS_DIR
     chunks: List[Dict[str, Any]] = []
     files_added: List[str] = []
@@ -106,7 +113,6 @@ def build_knowledge_base(docs_dir: str | None = None) -> List[Dict[str, Any]]:
 
 
 def get_embeddings():
-    """Эмбеддинги через OpenRouter (OpenAI-совместимый API)."""
     try:
         from langchain_openai import OpenAIEmbeddings
         api_key = os.getenv("OPENROUTER_API_KEY")
@@ -126,7 +132,6 @@ def build_faiss_index(
     knowledge_chunks: List[Dict[str, Any]],
     index_path: str = FAISS_INDEX_PATH,
 ) -> Optional[Any]:
-    """Строит индекс FAISS из фрагментов и сохраняет на диск."""
     from langchain_community.vectorstores import FAISS
     from langchain_core.documents import Document
 
@@ -150,7 +155,6 @@ def build_faiss_index(
 
 
 def load_faiss_index(index_path: str = FAISS_INDEX_PATH) -> Optional[Any]:
-    """Загружает индекс FAISS с диска."""
     from langchain_community.vectorstores import FAISS
 
     if not os.path.isdir(index_path):
@@ -166,7 +170,6 @@ def load_faiss_index(index_path: str = FAISS_INDEX_PATH) -> Optional[Any]:
 
 
 def load_or_build_faiss_index(knowledge_chunks: List[Dict[str, Any]]) -> Optional[Any]:
-    """Загружает FAISS с диска или строит заново при отсутствии индекса."""
     store = load_faiss_index()
     if store is not None:
         print("[RAG] Используется FAISS-индекс (семантический поиск).")
@@ -179,7 +182,6 @@ def _normalize_word(w: str) -> str:
 
 
 def _score_chunk(query_tokens: List[str], chunk_text: str) -> int:
-    """Оценка релевантности: точное вхождение слова + вхождение как подстроки в словах (для разных форм)."""
     text_lower = chunk_text.lower()
     chunk_words = [_normalize_word(w) for w in text_lower.split() if len(w) > 1]
     score = 0
@@ -197,7 +199,6 @@ def _score_chunk(query_tokens: List[str], chunk_text: str) -> int:
 
 
 def _fallback_chunks(chunks: List[Dict[str, Any]], n: int = 5) -> List[Dict[str, Any]]:
-    """При отсутствии совпадений — берём по одному фрагменту из разных файлов."""
     seen_sources: set[str] = set()
     result: List[Dict[str, Any]] = []
     for c in chunks:
@@ -220,65 +221,27 @@ def retrieve_context(
     max_chars: int | None = None,
     vectorstore: Optional[Any] = None,
 ) -> str:
-    """
-    Поиск: при переданном vectorstore (FAISS) — семантический поиск по эмбеддингам;
-    иначе по ключевым словам и подстрокам с fallback по разным файлам.
-    """
     k = k if k is not None else DEFAULT_TOP_K
     limit = max_chars or MAX_RAG_CONTEXT_CHARS
 
     if vectorstore is not None:
         try:
             docs = vectorstore.similarity_search(query, k=k)
-            context_parts = []
-            total_len = 0
-            for idx, doc in enumerate(docs, start=1):
-                source = doc.metadata.get("source", "?")
-                part = f"[{idx}] ({source})\n{doc.page_content}\n"
-                if total_len + len(part) > limit:
-                    break
-                context_parts.append(part)
-                total_len += len(part)
-            if context_parts:
-                header = (
-                    "Вот выдержки из локальной базы знаний (документы из папки docs). "
-                    "Отвечай, опираясь прежде всего на них. Если информации недостаточно, "
-                    "честно скажи, чего не хватает.\n\n"
-                )
-                return header + "\n\n".join(context_parts)
+            items = [(doc.metadata.get("source", "?"), doc.page_content) for doc in docs]
+            parts = _format_context_parts(items, limit)
+            if parts:
+                return RAG_HEADER + "\n\n".join(parts)
         except Exception as e:
-            print(f"[RAG] Ошибка FAISS-поиска, fallback на ключевые слова: {e}")
+            print(f"[RAG] Ошибка FAISS, fallback на ключевые слова: {e}")
 
     if not knowledge_chunks:
         return ""
 
     tokens = [w for t in query.split() if t.strip() for w in [_normalize_word(t)] if len(w) >= 2]
-    scored: List[tuple[int, Dict[str, Any]]] = []
-    for chunk in knowledge_chunks:
-        score = _score_chunk(tokens, chunk["text"])
-        scored.append((score, chunk))
-
+    scored = [(_score_chunk(tokens, c["text"]), c) for c in knowledge_chunks]
     scored.sort(key=lambda x: x[0], reverse=True)
-    if scored and scored[0][0] > 0:
-        top_chunks = [c for _, c in scored[:k]]
-    else:
-        top_chunks = _fallback_chunks(knowledge_chunks, n=k)
-
-    context_parts = []
-    total_len = 0
-    for idx, chunk in enumerate(top_chunks, start=1):
-        part = f"[{idx}] ({chunk['source']})\n{chunk['text']}\n"
-        if total_len + len(part) > limit:
-            break
-        context_parts.append(part)
-        total_len += len(part)
-
-    if not context_parts:
+    top_chunks = [c for _, c in scored[:k]] if scored and scored[0][0] > 0 else _fallback_chunks(knowledge_chunks, n=k)
+    parts = _format_context_parts([(c["source"], c["text"]) for c in top_chunks], limit)
+    if not parts:
         return ""
-
-    header = (
-        "Вот выдержки из локальной базы знаний (документы из папки docs). "
-        "Отвечай, опираясь прежде всего на них. Если информации недостаточно, "
-        "честно скажи, чего не хватает.\n\n"
-    )
-    return header + "\n\n".join(context_parts)
+    return RAG_HEADER + "\n\n".join(parts)

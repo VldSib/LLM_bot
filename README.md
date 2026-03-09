@@ -1,38 +1,73 @@
-# data-science-
-# Telegram LLM Bot
+# Telegram-бот с RAG
 
-Простой Telegram-бот, который отправляет сообщения пользователя в LLM через OpenRouter и возвращает ответ.
+Telegram-бот на Python: отвечает на сообщения через LLM (OpenRouter), используя **RAG** — подставляет в контекст выдержки из локальной базы знаний (папка `docs`).
+
+## Возможности
+
+- Чат с учётом истории диалога (последние N сообщений).
+- **RAG (Retrieval-Augmented Generation):**
+  - при наличии индекса — **семантический поиск** (FAISS + эмбеддинги OpenRouter);
+  - при отсутствии индекса или ошибке — **поиск по ключевым словам** с fallback по разным файлам.
+- База знаний: PDF и DOCX из папки `docs` (разбиваются на фрагменты, при первом запуске строится FAISS-индекс).
 
 ## Стек
-- Python
-- pyTelegramBotAPI
-- LangChain
-- OpenRouter API
+
+- **Python 3.12**
+- **pyTelegramBotAPI** — Telegram Bot API
+- **LangChain** (langchain-openai, langchain-community) — LLM и векторное хранилище
+- **OpenRouter** — чат (модель по умолчанию: `z-ai/glm-4.5-air:free`) и эмбеддинги (`openai/text-embedding-3-small`)
+- **FAISS** (faiss-cpu) — векторный поиск
+- **pypdf**, **python-docx** — чтение документов
 
 ## Установка
 
-```bash
-git clone https://github.com/yourusername/telegram-llm-bot.git
-cd telegram-llm-bot
-pip install -r requirements.txt
+1. Клонируйте репозиторий и перейдите в папку проекта:
 
-```
-## Настройка
+   ```bash
+   cd AI_YP
+   ```
 
-Создайте файл .env:
-```bash
-OPENROUTER_API_KEY=your_openrouter_key
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-```
-Ключ OpenRouter можно получить на https://openrouter.ai
+2. Создайте виртуальное окружение и установите зависимости (обязательно вызывайте `pip` из venv проекта):
+
+   ```bash
+   python -m venv venv
+   .\venv\Scripts\pip.exe install -r requirements.txt
+   ```
+
+3. Создайте файл `.env` в корне проекта:
+
+   ```
+   OPENROUTER_API_KEY=ваш_ключ_openrouter
+   TELEGRAM_BOT_TOKEN=токен_бота_от_BotFather
+   ```
+
+   Ключ OpenRouter: [openrouter.ai](https://openrouter.ai).  
+   Токен бота: [@BotFather](https://t.me/BotFather) в Telegram.
+
+4. Положите документы базы знаний в папку **`docs`** (внутри проекта). Поддерживаются форматы **.pdf** и **.docx**.
 
 ## Запуск
 
-python bot.py
+```bash
+.\venv\Scripts\python.exe bot.py
+```
 
-## Модель
+При первом запуске бот загрузит документы из `docs`, при наличии ключа OpenRouter построит FAISS-индекс (папка `rag_faiss_index/`) и выведет список загруженных файлов. При следующих запусках индекс подхватывается с диска.
 
-По умолчанию используется модель:
-z-ai/glm-4.5-air:free
+## Структура проекта
 
-При необходимости можно изменить модель в bot.py.
+```
+AI_YP/
+├── bot.py          # Точка входа: Telegram-бот, вызов RAG и LLM
+├── rag.py          # RAG: загрузка docs, FAISS, поиск по ключевым словам
+├── docs/           # База знаний (PDF, DOCX)
+├── requirements.txt
+├── .env            # Секреты (не коммитить)
+└── rag_faiss_index/  # Индекс FAISS (создаётся при первом запуске, в .gitignore)
+```
+
+## RAG в двух словах
+
+- **Загрузка:** при старте из `docs` читаются PDF и DOCX, текст режется на фрагменты (~1000 символов с перекрытием).
+- **Поиск:** для каждого сообщения пользователя вызывается `retrieve_context`: при наличии FAISS — семантический поиск по эмбеддингам (OpenRouter), иначе — оценка по совпадению/подстрокам слов; при отсутствии совпадений подставляются фрагменты из разных файлов (fallback).
+- **Контекст:** подобранные фрагменты (с указанием источника) передаются в LLM как системное сообщение, модель отвечает с опорой на базу знаний.

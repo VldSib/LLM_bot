@@ -14,3 +14,4 @@ __pycache__/
 # Прочее
 .gitattributes
 gitignore.txt
+rag_faiss_index/
