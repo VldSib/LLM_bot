@@ -1,0 +1,10 @@
+services:
+  llm-bot:
+    build: .
+    container_name: llm-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./docs:/app/docs
+      - ./rag_faiss_index:/app/rag_faiss_index
