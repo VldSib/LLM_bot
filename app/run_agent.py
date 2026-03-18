@@ -1,6 +1,7 @@
 """Запуск агента: граф LangGraph с инструментами RAG и веб-поиск."""
 from __future__ import annotations
 
+import re
 import threading
 import time
 from collections import OrderedDict, deque
@@ -88,6 +89,28 @@ def run_agent(user_text: str, chat_id: int) -> str:
         response_text = str(last.content) if last and getattr(last, "content", None) else "Не удалось сформировать ответ."
 
     print(f"[{chat_id}] BOT:", response_text)
+
+    # Добавляем источники в конец ответа (deterministic):
+    # - для web_search инструмент уже содержит "Источник: <url>"
+    # - для rag_search мы помечаем источник как "Источник: <doc_name>"
+    sources: list[str] = []
+    seen_sources: set[str] = set()
+    for m in out_messages:
+        content = getattr(m, "content", None)
+        if not isinstance(content, str):
+            continue
+        # Берём все строки вида "Источник: ..." и сохраняем уникальные значения.
+        matches = re.findall(r"(?m)^Источник:\s*(.+)\s*$", content)
+        for s in matches:
+            s = s.strip()
+            if s and s not in seen_sources:
+                seen_sources.add(s)
+                sources.append(s)
+
+    if sources:
+        # Ограничим количество источников, чтобы не раздувать сообщения.
+        sources = sources[:3]
+        response_text = response_text.strip() + "\n\n" + "\n".join(f"Источник: {s}" for s in sources)
 
     # Обновляем историю под тем же chat_id lock, чтобы не было гонок
     with _hist_lock:

@@ -62,7 +62,8 @@ def _format_context_parts(items: List[tuple[str, str]], limit: int) -> List[str]
     parts = []
     total = 0
     for idx, (source, text) in enumerate(items, start=1):
-        part = f"[{idx}] ({source})\n{text}\n"
+        # Явно маркируем источник, чтобы бот мог вывести "Источник: ..." (и для rag_search, и для LLM-контекста).
+        part = f"[{idx}]\nИсточник: {source}\n{text}\n"
         if total + len(part) > limit:
             break
         parts.append(part)
