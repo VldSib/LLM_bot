@@ -11,8 +11,6 @@ langchain-text-splitters
 langgraph
 
 faiss-cpu
-chromadb
-sentence-transformers
 
 python-docx
 pypdf
