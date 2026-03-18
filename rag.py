@@ -173,7 +173,9 @@ def load_faiss_index(index_path: str = FAISS_INDEX_PATH) -> Optional[Any]:
     if not embeddings:
         return None
     try:
-        return FAISS.load_local(index_path, embeddings, allow_dangerous_deserialization=True)
+        # Не используем dangerous deserialization: снижает риск,
+        # если индекс повреждён/подменён.
+        return FAISS.load_local(index_path, embeddings)
     except Exception as e:
         print(f"[RAG] Ошибка загрузки FAISS: {e}")
         return None
