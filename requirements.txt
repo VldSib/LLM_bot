@@ -1,6 +1,7 @@
-python-dotenv==1.2.2
-pyTelegramBotAPI==4.32.0
+python-dotenv
+pyTelegramBotAPI
 tavily==1.1.0
+
 
 langchain
 langchain-community
@@ -8,9 +9,10 @@ langchain-openai
 langchain-core
 langchain-text-splitters
 langgraph
-langgraph-prebuilt
 
 faiss-cpu
+chromadb
+sentence-transformers
 
 python-docx
 pypdf

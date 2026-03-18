@@ -78,58 +78,6 @@
 
 ---
 
-## 🐳 Деплой на VPS (Ubuntu 24.04) через Docker + Git (без `.env` в репозитории)
-
-`.env` **не коммитится** (он в `.gitignore`). На VPS он хранится локально и подхватывается через `docker compose`.
-
-### 1) На VPS установить Docker
-
-```bash
-sudo apt update
-sudo apt install -y docker.io docker-compose-plugin
-sudo systemctl enable --now docker
-sudo usermod -aG docker $USER
-newgrp docker
-```
-
-### 2) Клонировать репозиторий на VPS
-
-Репозиторий: `https://github.com/VldSib/LLM_bot`
-
-```bash
-mkdir -p ~/LLM_bot && cd ~/LLM_bot
-git clone https://github.com/VldSib/LLM_bot .
-```
-
-### 3) Создать `.env` на VPS (только на сервере)
-
-```bash
-nano .env
-chmod 600 .env
-```
-
-Шаблон переменных — в `env.example`.
-
-### 4) Положить документы в `docs/`
-
-Скопируйте ваши `.pdf/.docx` в `docs/` (папка монтируется в контейнер).
-
-### 5) Запуск
-
-```bash
-docker compose up -d --build
-docker logs -f llm-bot
-```
-
-### 6) Обновление одной командой
-
-```bash
-chmod +x deploy.sh
-./deploy.sh
-```
-
----
-
 ## 📁 Структура проекта
 
 ```
