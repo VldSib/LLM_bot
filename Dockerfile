@@ -15,4 +15,7 @@ RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 6️⃣ Команда запуска при старте контейнера
-CMD ["python", "bot.py"]
+ENV PYTHONUNBUFFERED=1
+
+# -u: unbuffered output, чтобы print/ошибки попадали в `docker logs`
+CMD ["python", "-u", "bot.py"]
