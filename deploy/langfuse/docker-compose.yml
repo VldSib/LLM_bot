@@ -94,6 +94,17 @@ services:
       HOST: 0.0.0.0
       HOSTNAME: 0.0.0.0
       PORT: "3000"
+    # Docker часто подставляет HOSTNAME=container-id; Next standalone слушает по нему → только eth0, не 127.0.0.1.
+    # env ... перед node гарантирует bind на 0.0.0.0 (как в образе langfuse, плюс ветка dd-trace).
+    command:
+      - sh
+      - -c
+      - |
+        if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then
+          exec env HOSTNAME=0.0.0.0 HOST=0.0.0.0 node --import dd-trace/initialize.mjs ./web/server.js --keepAliveTimeout 110000
+        else
+          exec env HOSTNAME=0.0.0.0 HOST=0.0.0.0 node ./web/server.js --keepAliveTimeout 110000
+        fi
 
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server
