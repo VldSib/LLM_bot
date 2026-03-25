@@ -18,7 +18,7 @@
    LANGFUSE_HOST=http://localhost:3000
    ```
 
-   Для Docker на VPS укажите URL, **доступный из контейнера бота** (не `localhost` хоста, если Langfuse в другом контейнере). Для compose из `deploy/langfuse/` сервис веб-UI называется **`langfuse-web`**: `http://langfuse-web:3000` (общая Docker-сеть с ботом). Либо `http://<внутренний-ip>:3000`, если так настроена сеть.
+   Для Docker на VPS укажите URL, **доступный из контейнера бота** (не `localhost` хоста, если Langfuse в другом контейнере). Рекомендуется **общая сеть** `llm_shared`: один раз `docker network create llm_shared`, в корневом `docker-compose.yml` бота и в `deploy/langfuse/docker-compose.yml` сеть уже описана — после `docker compose up` у обоих стеков используйте `LANGFUSE_HOST=http://langfuse-web:3000`. Не используйте публичный IP ВМ из контейнера бота — часто даёт таймаут (hairpin). Либо `http://172.17.0.1:3000` к хосту, если общая сеть не настроена.
 
 4. Перезапустите бота.
 
