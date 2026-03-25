@@ -7,7 +7,7 @@
 
 ## Включение
 
-1. Поднимите Langfuse (локально или на VPS). Готовый `docker-compose` для v3 лежит в репозитории: **`deploy/langfuse/`** (см. `deploy/langfuse/README.md`). Затем создайте проект в UI.
+1. Поднимите Langfuse (локально или на VPS). Готовый `docker-compose` для v3 лежит в репозитории: **`deploy/langfuse/`**. Затем создайте проект в UI.
 2. Скопируйте **Public** и **Secret** ключи из Settings → API Keys.
 3. В `.env`:
 
