@@ -73,8 +73,11 @@ services:
     ports:
       - 3000:3000
     networks:
-      - default
-      - llm_shared
+      default:
+      llm_shared:
+        aliases:
+          # Иначе на external-сети имя langfuse-web часто не резолвится из другого compose (llm-bot).
+          - langfuse-web
     environment:
       <<: *langfuse-worker-env
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-mysecret} # CHANGEME
@@ -87,9 +90,10 @@ services:
       LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-}
       LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-}
       LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-}
-      # Слушать на 0.0.0.0: иначе при двух сетях (default + llm_shared) Next может слушать только один IP,
-      # и запросы с бота по имени langfuse-web (другая сеть) получают connection refused.
+      # Слушать на всех интерфейсах (две сети: default + llm_shared).
       HOST: 0.0.0.0
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
 
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server
