@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from langchain_core.messages import SystemMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -23,11 +24,15 @@ def _create_agent_graph():
     )
     llm_with_tools = llm.bind_tools(TOOLS)
 
-    def agent_node(state: AgentState) -> dict:
-        """Вызывает LLM с системным промптом и текущей историей; возвращает ответ (возможно с tool_calls)."""
+    def agent_node(state: AgentState, config: RunnableConfig) -> dict:
+        """Вызывает LLM с системным промптом и текущей историей; возвращает ответ (возможно с tool_calls).
+
+        В LangGraph узлы компилируются с trace=False, поэтому колбэки (Langfuse и др.)
+        нужно явно передать в invoke LLM — иначе трейсы без шагов модели/инструментов.
+        """
         messages = state["messages"]
         full = [SystemMessage(content=SYSTEM_PROMPT)] + list(messages)
-        response = llm_with_tools.invoke(full)
+        response = llm_with_tools.invoke(full, config=config)
         return {"messages": [response]}
 
     builder = StateGraph(AgentState)
