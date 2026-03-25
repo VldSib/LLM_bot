@@ -87,6 +87,9 @@ services:
       LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-}
       LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-}
       LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-}
+      # Слушать на 0.0.0.0: иначе при двух сетях (default + llm_shared) Next может слушать только один IP,
+      # и запросы с бота по имени langfuse-web (другая сеть) получают connection refused.
+      HOST: 0.0.0.0
 
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server
