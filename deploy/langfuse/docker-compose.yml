@@ -130,6 +130,9 @@ services:
   redis:
     image: docker.io/redis:7
     restart: always
+    # Тот же пароль, что в command — нужен в env для redis-cli (healthcheck, отладка).
+    environment:
+      REDIS_AUTH: ${REDIS_AUTH:-myredissecret}
     # CHANGEME: row below to secure redis password
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
@@ -139,7 +142,7 @@ services:
     volumes:
       - langfuse_redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a $$REDIS_AUTH ping | grep -q PONG"]
       interval: 3s
       timeout: 10s
       retries: 10
