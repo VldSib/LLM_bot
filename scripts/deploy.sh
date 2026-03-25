@@ -30,4 +30,3 @@ docker compose up -d --build
 
 echo "[deploy] Done. Status:"
 docker ps --filter "name=llm-bot"
-
