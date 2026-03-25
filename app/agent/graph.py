@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
+from langchain_core.runnables.config import patch_config
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -32,7 +33,9 @@ def _create_agent_graph():
         """
         messages = state["messages"]
         full = [SystemMessage(content=SYSTEM_PROMPT)] + list(messages)
-        response = llm_with_tools.invoke(full, config=config)
+        # Как в data-science-: отдельный run_name для шага модели (видно в Langfuse).
+        model_cfg = patch_config(config, run_name="model_invoke")
+        response = llm_with_tools.invoke(full, config=model_cfg)
         return {"messages": [response]}
 
     builder = StateGraph(AgentState)

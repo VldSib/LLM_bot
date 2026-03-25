@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import threading
 from contextlib import contextmanager
-from typing import Any, Generator, List
+from typing import Any, Dict, Generator, List, Optional
+from uuid import uuid4
 
 from app.config import settings
 
@@ -41,28 +42,56 @@ def _ensure_langfuse_client() -> None:
         _client_ready = True
 
 
-def langfuse_callbacks_for_chat(chat_id: int) -> List[Any]:
+def langfuse_graph_invoke_config(chat_id: int) -> Optional[Dict[str, Any]]:
     """
-    Возвращает список callback handlers для graph.invoke(..., config={"callbacks": ...}).
-    Пустой список, если Langfuse выключен или не настроен.
+    Полный RunnableConfig для graph.invoke, как в callback-first-проектах (run_name + metadata для Langfuse).
+
+    Ключи langfuse_* в metadata обрабатывает Langfuse CallbackHandler (сессия, user, теги).
     """
     if not _langfuse_configured():
-        return []
+        return None
     _ensure_langfuse_client()
     try:
         from langfuse.langchain import CallbackHandler
     except ImportError:
         print("[langfuse] Пакет langfuse не установлен. Установите: pip install 'langfuse>=3,<4'")
-        return []
+        return None
 
-    handler = CallbackHandler(public_key=settings.langfuse_public_key.strip())
-    return [handler]
+    trace_id = uuid4().hex
+    sid = str(chat_id)
+    handler = CallbackHandler(
+        public_key=settings.langfuse_public_key.strip(),
+        update_trace=True,
+    )
+    return {
+        "callbacks": [handler],
+        "run_name": "llm_bot",
+        "metadata": {
+            "telegram_chat_id": sid,
+            "app": "llm_bot",
+            "langfuse_trace_id": trace_id,
+            "langfuse_session_id": sid,
+            "langfuse_user_id": sid,
+            "langfuse_tags": ["telegram", "llm_bot"],
+        },
+    }
+
+
+def langfuse_callbacks_for_chat(chat_id: int) -> List[Any]:
+    """
+    Только список handlers (совместимость). Предпочтительно использовать langfuse_graph_invoke_config.
+    """
+    cfg = langfuse_graph_invoke_config(chat_id)
+    if not cfg:
+        return []
+    cbs = cfg.get("callbacks")
+    return list(cbs) if isinstance(cbs, list) else []
 
 
 @contextmanager
 def langfuse_chat_context(chat_id: int) -> Generator[None, None, None]:
     """
-    Оборачивает вызов графа: session_id / user_id для группировки трейсов по Telegram chat_id.
+    Опционально: propagate_attributes для OTel (session/user). Основной путь — metadata в invoke config.
     """
     if not _langfuse_configured():
         yield

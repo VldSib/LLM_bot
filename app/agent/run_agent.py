@@ -16,8 +16,7 @@ from app.agent.graph import get_graph
 from app.agent.state import AgentState
 from app.observability.langfuse_tracing import (
     flush_langfuse,
-    langfuse_callbacks_for_chat,
-    langfuse_chat_context,
+    langfuse_graph_invoke_config,
 )
 
 #
@@ -112,15 +111,14 @@ def run_agent(user_text: str, chat_id: int) -> str:
 
         print(f"[{chat_id}] USER:", user_text)
         graph = get_graph()
-        callbacks = langfuse_callbacks_for_chat(chat_id)
-        with langfuse_chat_context(chat_id):
-            try:
-                if callbacks:
-                    result = graph.invoke(state, config={"callbacks": callbacks})
-                else:
-                    result = graph.invoke(state)
-            finally:
-                flush_langfuse()
+        lf_config = langfuse_graph_invoke_config(chat_id)
+        try:
+            if lf_config:
+                result = graph.invoke(state, config=lf_config)
+            else:
+                result = graph.invoke(state)
+        finally:
+            flush_langfuse()
 
         out_messages = result["messages"]
 
