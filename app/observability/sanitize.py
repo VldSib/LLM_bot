@@ -10,7 +10,11 @@ from typing import Any
 # перехватывается этим слоем без рефакторинга.
 
 EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
-PHONE_PATTERN = re.compile(r"(?:(?:\+?\d{1,3}[\s-]?)?(?:\(?\d{2,3}\)?[\s-]?)?\d{3}[\s-]?\d{2}[\s-]?\d{2}))")
+# Простой best-effort шаблон для телефонов (форматы с +7/8, пробелами и дефисами).
+# Важно: без невалидных скобок, чтобы regex компилировался.
+PHONE_PATTERN = re.compile(
+    r"(?:\+?\d{1,3}[\s-]?)?(?:\(?\d{2,3}\)?[\s-]?)?\d{3}[\s-]?\d{2}[\s-]?\d{2}"
+)
 
 # Common token-like strings (best-effort).
 SK_PREFIX_PATTERN = re.compile(r"\b(sk-[A-Za-z0-9_-]+)\b")
