@@ -7,7 +7,7 @@ from typing import Any, Dict, Generator, List, Optional
 from uuid import uuid4
 
 from app.config import settings
-from app.observability.sanitize import hash_user_id, sanitize_payload
+from app.observability.sanitize import hash_user_id, langfuse_mask
 
 _init_lock = threading.Lock()
 _client_ready = False
@@ -41,7 +41,7 @@ def _ensure_langfuse_client() -> None:
             host=settings.langfuse_host.rstrip("/"),
             # SDK 3.x будет применять mask-функцию к input/output/metadata
             # перед отправкой в Langfuse. Это покрывает PII в payload'ах модели.
-            mask=sanitize_payload,
+            mask=langfuse_mask,
         )
         _client_ready = True
 

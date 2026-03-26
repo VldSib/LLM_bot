@@ -88,3 +88,10 @@ def sanitize_payload(payload: Any, *, _depth: int = 0, _seen: set[int] | None = 
     except Exception:
         return "<masked>"
 
+
+def langfuse_mask(*, data: Any) -> Any:
+    """
+    Совместимость с Langfuse SDK 3.x: mask-функция вызывается как mask(data=...).
+    """
+    return sanitize_payload(data)
+
