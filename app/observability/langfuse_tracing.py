@@ -7,6 +7,7 @@ from typing import Any, Dict, Generator, List, Optional
 from uuid import uuid4
 
 from app.config import settings
+from app.observability.sanitize import hash_user_id, sanitize_payload
 
 _init_lock = threading.Lock()
 _client_ready = False
@@ -38,6 +39,9 @@ def _ensure_langfuse_client() -> None:
             public_key=settings.langfuse_public_key.strip(),
             secret_key=settings.langfuse_secret_key.strip(),
             host=settings.langfuse_host.rstrip("/"),
+            # SDK 3.x будет применять mask-функцию к input/output/metadata
+            # перед отправкой в Langfuse. Это покрывает PII в payload'ах модели.
+            mask=sanitize_payload,
         )
         _client_ready = True
 
@@ -58,7 +62,10 @@ def langfuse_graph_invoke_config(chat_id: int) -> Optional[Dict[str, Any]]:
         return None
 
     trace_id = uuid4().hex
+    # Хэшируем user/session id, чтобы не хранить в Langfuse прямые
+    # идентификаторы Telegram-чата (PII).
     sid = str(chat_id)
+    hashed_sid = hash_user_id(sid)
     handler = CallbackHandler(
         public_key=settings.langfuse_public_key.strip(),
         update_trace=True,
@@ -67,11 +74,10 @@ def langfuse_graph_invoke_config(chat_id: int) -> Optional[Dict[str, Any]]:
         "callbacks": [handler],
         "run_name": "llm_bot",
         "metadata": {
-            "telegram_chat_id": sid,
             "app": "llm_bot",
             "langfuse_trace_id": trace_id,
-            "langfuse_session_id": sid,
-            "langfuse_user_id": sid,
+            "langfuse_session_id": hashed_sid,
+            "langfuse_user_id": hashed_sid,
             "langfuse_tags": ["telegram", "llm_bot"],
         },
     }
