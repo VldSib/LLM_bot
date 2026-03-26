@@ -32,30 +32,59 @@ def hash_user_id(user_id: str) -> str:
 
 def sanitize_text(text: str) -> str:
     """Маскирует базовые PII/секреты в строке."""
-    s = text
-    s = EMAIL_PATTERN.sub("<email>", s)
-    s = PHONE_PATTERN.sub("<phone>", s)
-    s = SK_PREFIX_PATTERN.sub("<secret_key>", s)
-    s = PK_PREFIX_PATTERN.sub("<public_key>", s)
-    return s
+    try:
+        s = text
+        s = EMAIL_PATTERN.sub("<email>", s)
+        s = PHONE_PATTERN.sub("<phone>", s)
+        s = SK_PREFIX_PATTERN.sub("<secret_key>", s)
+        s = PK_PREFIX_PATTERN.sub("<public_key>", s)
+        return s
+    except Exception:
+        # Никогда не ломаем трейсинг из-за санитизации.
+        return "<masked>"
 
 
-def sanitize_payload(payload: Any) -> Any:
+def sanitize_payload(payload: Any, *, _depth: int = 0, _seen: set[int] | None = None) -> Any:
     """
     Рекурсивная санитизация payload:
     - str: sanitize_text
     - dict/list: рекурсивно по значениям
     - прочее: без изменений
     """
-    if payload is None:
-        return None
-    if isinstance(payload, str):
-        return sanitize_text(payload)
-    if isinstance(payload, dict):
-        return {str(k): sanitize_payload(v) for k, v in payload.items()}
-    if isinstance(payload, list):
-        return [sanitize_payload(v) for v in payload]
-    if isinstance(payload, tuple):
-        return [sanitize_payload(v) for v in payload]
-    return payload
+    try:
+        if payload is None:
+            return None
+
+        # защита от циклов/слишком глубокой вложенности
+        if _seen is None:
+            _seen = set()
+        if _depth > 8:
+            return "<truncated>"
+        obj_id = id(payload)
+        if obj_id in _seen:
+            return "<cycle>"
+
+        if isinstance(payload, str):
+            return sanitize_text(payload)
+        if isinstance(payload, bytes):
+            return sanitize_text(payload.decode("utf-8", errors="ignore"))
+
+        if isinstance(payload, dict):
+            _seen.add(obj_id)
+            return {
+                sanitize_text(str(k)): sanitize_payload(v, _depth=_depth + 1, _seen=_seen)
+                for k, v in payload.items()
+            }
+        if isinstance(payload, list):
+            _seen.add(obj_id)
+            return [sanitize_payload(v, _depth=_depth + 1, _seen=_seen) for v in payload]
+        if isinstance(payload, tuple):
+            _seen.add(obj_id)
+            return [sanitize_payload(v, _depth=_depth + 1, _seen=_seen) for v in payload]
+
+        # Для нестандартных объектов (например, LangChain сообщения) делаем безопасную строку.
+        # Это предотвращает исключения/циклы и даёт хоть какую-то диагностическую ценность.
+        return sanitize_text(str(payload))
+    except Exception:
+        return "<masked>"
 
