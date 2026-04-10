@@ -44,6 +44,12 @@ def init_rag() -> None:
             logger.exception("[RAG] Ошибка инициализации ресурсов: %s", e)
             _knowledge_chunks = []
             _faiss_store = None
+        else:
+            logger.info(
+                "[RAG] Инициализация завершена: чанков=%s, FAISS (семантический поиск)=%s",
+                len(_knowledge_chunks),
+                "да" if _faiss_store is not None else "нет (только keyword fallback)",
+            )
         _rag_initialized = True
 
 
